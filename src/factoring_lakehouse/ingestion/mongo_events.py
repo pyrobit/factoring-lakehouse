@@ -16,7 +16,7 @@ from pydantic import ValidationError
 
 from ..config import get_logger
 from ..contracts import Payment
-from .postgres_incremental import write_jsonl
+from .postgres_incremental import to_utc, write_jsonl
 from .watermark import WatermarkStore
 
 log = get_logger(__name__)
@@ -31,14 +31,15 @@ def normalize(doc: dict) -> dict:
     amount = doc.get("amount")
     if hasattr(amount, "to_decimal"):  # bson.Decimal128
         amount = amount.to_decimal()
+    paid_at, event_ts = doc.get("paid_at"), doc.get("event_ts")
     return {
         "payment_id": str(doc.get("payment_id") or doc.get("_id")),
         "invoice_id": doc.get("invoice", {}).get("id") if isinstance(doc.get("invoice"), dict)
         else doc.get("invoice_id"),
         "amount": amount,
-        "paid_at": doc.get("paid_at"),
+        "paid_at": to_utc(paid_at) if isinstance(paid_at, datetime) else paid_at,
         "method": (doc.get("method") or "").upper() or None,
-        "event_ts": doc.get("event_ts"),
+        "event_ts": to_utc(event_ts) if isinstance(event_ts, datetime) else event_ts,
     }
 
 

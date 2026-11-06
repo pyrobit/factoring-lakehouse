@@ -16,6 +16,7 @@ from .contracts import CONTRACTS, spark_schema
 log = get_logger(__name__)
 
 LINEAGE_COLUMNS = ("_ingested_at", "_source_file", "_batch_id")
+TIMESTAMP_FORMAT = "yyyy-MM-dd'T'HH:mm:ss[.SSSSSS]XXX"
 
 
 def add_lineage(df: DataFrame, batch_id: str) -> DataFrame:
@@ -32,7 +33,8 @@ def read_landing(spark: SparkSession, cfg: PipelineConfig, entity: str, batch_id
     df = (
         spark.read.schema(schema)
         .option("mode", "PERMISSIVE")
-        .option("timestampFormat", "yyyy-MM-dd'T'HH:mm:ss[.SSS]X")
+        # Accepts 'Z' or '+00:00' offsets and 0-6 fractional digits (datagen, Postgres, Mongo).
+        .option("timestampFormat", TIMESTAMP_FORMAT)
         .json(path)
     )
     return add_lineage(df, batch_id)

@@ -13,7 +13,7 @@ import argparse
 import json
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -52,9 +52,17 @@ def build_incremental_query(table: str, since: datetime, until: datetime,
     return IncrementalQuery(sql, {"since": since - lookback, "until": until})
 
 
+def to_utc(ts: datetime) -> datetime:
+    """Naive datetimes (e.g. from pymongo) are UTC by convention; make them tz-aware."""
+    return ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts.astimezone(timezone.utc)
+
+
 def _json_default(o):
     if isinstance(o, Decimal):
         return float(o)
+    if isinstance(o, datetime):
+        # One canonical wire format for every source: UTC, microseconds, 'Z' suffix.
+        return to_utc(o).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     if hasattr(o, "isoformat"):
         return o.isoformat()
     raise TypeError(type(o))
@@ -70,6 +78,7 @@ def write_jsonl(rows: Iterable[dict], target: Path) -> tuple[int, datetime | Non
             fh.write(json.dumps(row, default=_json_default) + "\n")
             count += 1
             ts = row.get("updated_at")
+            ts = to_utc(ts) if isinstance(ts, datetime) else ts
             if ts is not None and (max_ts is None or ts > max_ts):
                 max_ts = ts
     tmp.replace(target)  # readers (Auto Loader) never see a half-written file
@@ -80,8 +89,12 @@ def _stream_rows(conn, query: IncrementalQuery, chunk_size: int) -> Iterator[dic
     with conn.cursor(name="factoring_extract") as cur:  # server-side cursor
         cur.itersize = chunk_size
         cur.execute(query.sql, query.params)
-        cols = [d[0] for d in cur.description]
+        cols: list[str] | None = None
         for record in cur:
+            # Named (server-side) cursors in psycopg2 only populate `description` after the first
+            # fetch, so read the column names lazily.
+            if cols is None:
+                cols = [d[0] for d in cur.description]
             yield dict(zip(cols, record, strict=True))
 
 
