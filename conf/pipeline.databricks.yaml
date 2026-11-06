@@ -1,0 +1,27 @@
+# Production paths on Databricks (Unity Catalog external locations). Same shape as pipeline.yaml.
+env: databricks
+
+paths:
+  landing: s3://factoring-landing-prod/landing
+  lakehouse: s3://factoring-lakehouse-prod/lakehouse
+  exports: s3://factoring-lakehouse-prod/exports
+  checkpoints: s3://factoring-lakehouse-prod/checkpoints
+
+quality:
+  max_reject_rate:
+    clients: 0.02
+    debtors: 0.02
+    invoices: 0.05
+    payments: 0.05
+
+business:
+  concentration_limit: 0.25
+  late_tolerance_days: 0
+  feature_lookback_days: 90
+
+snowflake:
+  database: FACTORING
+  raw_schema: RAW
+  stage: RAW.LAKEHOUSE_EXPORT_STAGE
+  warehouse: LOAD_WH
+  role: LOADER

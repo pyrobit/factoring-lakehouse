@@ -1,0 +1,43 @@
+# Databricks Asset Bundle: deploy with `databricks bundle deploy -t dev|prod`.
+bundle:
+  name: factoring_lakehouse
+
+variables:
+  catalog:
+    description: Unity Catalog catalog
+    default: factoring_dev
+  landing_root:
+    description: Cloud landing zone (S3 / ADLS / GCS external location)
+    default: s3://factoring-landing-dev/landing
+  lakehouse_root:
+    default: s3://factoring-lakehouse-dev/lakehouse
+  export_root:
+    description: Location the Snowflake external stage points at
+    default: s3://factoring-lakehouse-dev/exports
+  alert_email:
+    default: data-oncall@example.com
+
+artifacts:
+  factoring_wheel:
+    type: whl
+    path: ..
+    build: python -m pip wheel --no-deps -w dist ..
+
+include:
+  - resources/*.yml
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      root_path: ~/.bundle/${bundle.name}/${bundle.target}
+  prod:
+    mode: production
+    variables:
+      catalog: factoring_prod
+      landing_root: s3://factoring-landing-prod/landing
+      lakehouse_root: s3://factoring-lakehouse-prod/lakehouse
+      export_root: s3://factoring-lakehouse-prod/exports
+    run_as:
+      service_principal_name: factoring-pipeline-sp
