@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir \
       --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-3.11.txt"
 
 # The pipeline package (+ PySpark / Delta). Airflow itself stays pinned.
-COPY --chown=airflow:root pyproject.toml README.md /opt/factoring/
+COPY --chown=airflow:root pyproject.toml README.md LICENSE /opt/factoring/
 COPY --chown=airflow:root src /opt/factoring/src
 COPY --chown=airflow:root conf /opt/factoring/conf
 RUN pip install --no-cache-dir "apache-airflow==${AIRFLOW_VERSION}" /opt/factoring

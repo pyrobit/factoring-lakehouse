@@ -151,3 +151,7 @@ ref_docs/              project ideas, initial design, implementation plan
   use Delta time travel (`VERSION AS OF`) per date.
 - Next steps: streaming payments with Structured Streaming end-to-end, MLflow training on
   `debtor_features`, and Iceberg/Unity Catalog interoperability to remove the export copy (ADR-0005).
+
+## License
+
+[MIT](LICENSE) © 2026 Bruno Fonseca de Lima

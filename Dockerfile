@@ -28,7 +28,7 @@ RUN useradd --create-home --uid 1000 app \
 WORKDIR /app
 
 # ---- dependencies (cached layer: only re-runs when pyproject.toml changes) -----------------
-COPY --chown=app:app pyproject.toml README.md ./
+COPY --chown=app:app pyproject.toml README.md LICENSE ./
 RUN mkdir -p src/factoring_lakehouse && touch src/factoring_lakehouse/__init__.py \
  && pip install ".[dev]" \
  && pip uninstall -y factoring-lakehouse
