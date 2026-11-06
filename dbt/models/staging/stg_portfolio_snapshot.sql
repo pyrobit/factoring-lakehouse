@@ -1,0 +1,22 @@
+select
+    as_of_date,
+    invoice_id,
+    client_id,
+    client_name,
+    debtor_id,
+    debtor_name,
+    debtor_risk_rating,
+    invoice_date,
+    due_date,
+    status,
+    amount,
+    collected_amount,
+    outstanding_amount,
+    advance_amount,
+    reserve_amount,
+    dilution_amount,
+    expected_fee,
+    days_past_due,
+    aging_bucket,
+    is_open
+from {{ source('raw', 'portfolio_snapshot') }}

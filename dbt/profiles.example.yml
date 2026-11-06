@@ -1,0 +1,27 @@
+# Copy to profiles.yml (git-ignored) or point DBT_PROFILES_DIR at this folder.
+# Key-pair auth for service users; never commit passwords.
+factoring:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_FILE') }}"
+      role: transformer
+      warehouse: transform_wh
+      database: factoring_dev     # zero-copy clone of prod: `create database factoring_dev clone factoring;`
+      schema: dbt_{{ env_var('USER', 'dev') }}
+      threads: 8
+      query_tag: dbt_factoring_dev
+    prod:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_FILE') }}"
+      role: transformer
+      warehouse: transform_wh
+      database: factoring
+      schema: marts
+      threads: 16
+      query_tag: dbt_factoring_prod

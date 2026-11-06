@@ -1,0 +1,36 @@
+version: 2
+
+sources:
+  - name: raw
+    database: factoring
+    schema: raw
+    description: Loaded from the Databricks lakehouse export by the Python loader (COPY + MERGE).
+    config:
+      loaded_at_field: _ingested_at
+      freshness:
+        warn_after: {count: 26, period: hour}
+        error_after: {count: 36, period: hour}
+    tables:
+      - name: clients
+        columns:
+          - name: client_id
+            data_tests: [unique, not_null]
+      - name: debtors_history
+        description: SCD2 history maintained in Databricks silver.
+        columns:
+          - name: debtor_id
+            data_tests: [not_null]
+      - name: invoices
+        columns:
+          - name: invoice_id
+            data_tests: [unique, not_null]
+      - name: payments
+        columns:
+          - name: payment_id
+            data_tests: [unique, not_null]
+      - name: portfolio_snapshot
+        config:
+          freshness: null
+      - name: debtor_features
+        config:
+          freshness: null

@@ -1,0 +1,14 @@
+# Offline profile for `dbt parse` / `dbt compile --no-introspect` in CI (never connects).
+factoring:
+  target: ci
+  outputs:
+    ci:
+      type: snowflake
+      account: ci_placeholder
+      user: ci
+      password: ci
+      role: transformer
+      warehouse: transform_wh
+      database: factoring
+      schema: ci
+      threads: 1

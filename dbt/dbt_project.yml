@@ -1,0 +1,39 @@
+name: factoring
+version: "1.0.0"
+config-version: 2
+profile: factoring
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+target-path: target
+clean-targets: [target, dbt_packages]
+
+vars:
+  concentration_limit: 0.25
+  dso_window_days: 90
+
+models:
+  factoring:
+    +persist_docs: {relation: true, columns: true}
+    staging:
+      +schema: staging
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
+      +snowflake_warehouse: transform_wh
+      +post-hook:
+        - "grant select on {{ this }} to role analyst"
+    ml:
+      +schema: ml
+      +materialized: table
+      +post-hook:
+        - "grant select on {{ this }} to role data_scientist"
+
+data_tests:
+  factoring:
+    +severity: error
+    +store_failures: true
+    +schema: dq_audit

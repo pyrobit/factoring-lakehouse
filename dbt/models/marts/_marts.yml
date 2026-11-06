@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: dim_debtor
+    description: Type-2 debtor dimension (history from Databricks SCD2).
+    columns:
+      - name: debtor_version_key
+        data_tests: [unique, not_null]
+      - name: risk_rating
+        data_tests:
+          - accepted_values:
+              arguments: {values: ["A", "B", "C", "D"]}
+      - name: tax_id
+        description: PII, masked by tag-based policy for non-privileged roles.
+
+  - name: dim_client
+    columns:
+      - name: client_id
+        data_tests: [unique, not_null]
+
+  - name: fct_portfolio_aging
+    description: Open book per client and aging bucket, per as-of date. Row access policy applied in prod.
+    columns:
+      - name: aging_bucket
+        data_tests:
+          - accepted_values:
+              arguments: {values: ["CURRENT", "1-30", "31-60", "61-90", "90+"]}
+      - name: client_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_client'), field: client_id}
+      - name: outstanding_amount
+        data_tests: [not_null]
+
+  - name: fct_debtor_concentration
+    description: Debtor share of each client's open book; is_breach above the configured limit.
+    columns:
+      - name: concentration_share
+        data_tests: [not_null]
+      - name: debtor_id
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_debtor'), field: debtor_id}
+
+  - name: fct_client_kpis
+    description: Daily client scorecard (DSO, dilution, advance vs reserve, concentration breaches).
+    columns:
+      - name: client_id
+        data_tests: [not_null]
+      - name: dso_days
+        description: Days sales outstanding over the dso_window_days window.
+
+  - name: ml_debtor_features
+    description: Point-in-time debtor features for the late-payment model.
+    columns:
+      - name: debtor_id
+        data_tests: [not_null]
+      - name: as_of_date
+        data_tests: [not_null]
