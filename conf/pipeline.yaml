@@ -1,0 +1,29 @@
+# Pipeline configuration. Paths are local by default; on Databricks they become
+# cloud URIs (s3://, abfss://, gs://) or Unity Catalog volumes.
+env: local
+
+paths:
+  landing: data/landing          # raw JSONL dropped by extractors
+  lakehouse: data/lakehouse      # Delta tables (bronze/silver/gold/quarantine)
+  exports: data/exports          # Parquet hand-off to the Snowflake external stage
+  checkpoints: data/checkpoints  # Auto Loader / streaming checkpoints (Databricks)
+
+quality:
+  # Fail the batch when more than this fraction of an entity's rows is rejected.
+  max_reject_rate:
+    clients: 0.10
+    debtors: 0.05
+    invoices: 0.10
+    payments: 0.10
+
+business:
+  concentration_limit: 0.25      # a single debtor above 25% of a client's open book is a breach
+  late_tolerance_days: 0
+  feature_lookback_days: 90
+
+snowflake:
+  database: FACTORING
+  raw_schema: RAW
+  stage: RAW.LAKEHOUSE_EXPORT_STAGE
+  warehouse: LOAD_WH
+  role: LOADER
