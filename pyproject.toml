@@ -41,3 +41,8 @@ extend-exclude = ["databricks/notebooks", ".venv"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
 ignore = ["B008"]
+
+[tool.ruff.lint.isort]
+# The repo has an `airflow/` folder; the `airflow` import is the third-party package.
+known-third-party = ["airflow"]
+known-first-party = ["factoring_lakehouse"]

@@ -45,6 +45,29 @@ make snowflake-dry-run   # print the COPY/MERGE/reconcile SQL for a load
 make up           # optional: Postgres + MongoDB sources for the extraction demo
 ```
 
+### With Docker only (no Python or Java on the host)
+
+```bash
+make docker-build   # pipeline image (Python 3.11 + Java 17 + Delta jars baked in) + Airflow image
+make docker-demo    # the full demo inside the pipeline container; results in ./data/docker
+make docker-test    # pytest + behave inside the container
+make airflow-up     # Postgres + MongoDB + Airflow (LocalExecutor) at http://localhost:8080 (admin / admin)
+make airflow-down   # stop everything and drop the volumes
+```
+
+In the Airflow UI, trigger **`factoring_lakehouse_local`**. It extracts from the Postgres and MongoDB
+containers (incremental watermarks), runs bronze → silver → gold → export with local Spark in the
+worker, prints the Snowflake COPY/MERGE plan, and writes the report. The production DAG
+`factoring_lakehouse_daily` (Databricks + Snowflake) is loaded too, but stays paused because it
+needs real cloud connections.
+
+| Container | Image | Purpose |
+|---|---|---|
+| `pipeline` | `Dockerfile` | Reproducible runtime for the demo, tests and CI |
+| `airflow-webserver`, `airflow-scheduler`, `airflow-init` | `docker/airflow/Dockerfile` | Airflow 2.10 + providers + Java + this package |
+| `airflow-db` | `postgres:16.4` | Airflow metadata database |
+| `postgres`, `mongo` | official images + `docker/*/init.*` | Source systems with seed data |
+
 `make demo` ends with a report like this (actual output, as of 2026-11-01):
 
 ```
@@ -90,6 +113,7 @@ tests assert that the pipeline handles each one exactly.
 | **Airflow** | `airflow/dags/` | TaskGroups, deferrable Databricks operator, ShortCircuit reconcile gate, retries/SLA/alerts, Datasets, backfill-safe |
 | **Sources** | `ingestion/`, `docker/` | Postgres watermark CDC (server-side cursor, lookback overlap), MongoDB events (BSON normalisation, contract validation), atomic file writes |
 | **Cloud / IaC** | `infra/terraform/` | S3 (encryption, lifecycle, public-access block), IAM trust for the Snowflake storage integration, Snowflake objects; Azure/GCS variants documented |
+| **Containers** | `Dockerfile`, `docker/airflow/`, `docker-compose.yml` | Non-root pipeline image with Delta jars baked in, Airflow LocalExecutor stack with seeded Postgres/MongoDB, compose profiles, a runnable local DAG |
 | **Testing** | `tests/` | pytest unit + e2e on local Spark/Delta, **behave BDD** features, DAG integrity |
 | **CI** | `.github/workflows/ci.yml` | ruff, sqlfluff, pytest, behave, dbt parse, Airflow DAG import, terraform validate |
 

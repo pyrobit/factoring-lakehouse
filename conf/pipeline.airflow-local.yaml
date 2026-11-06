@@ -1,0 +1,27 @@
+# Paths for the local Airflow stack (docker compose --profile airflow). Mounted volume: ./data
+env: local
+
+paths:
+  landing: /opt/airflow/data/landing
+  lakehouse: /opt/airflow/data/lakehouse
+  exports: /opt/airflow/data/exports
+  checkpoints: /opt/airflow/data/checkpoints
+
+quality:
+  max_reject_rate:
+    clients: 0.10
+    debtors: 0.05
+    invoices: 0.10
+    payments: 0.10
+
+business:
+  concentration_limit: 0.25
+  late_tolerance_days: 0
+  feature_lookback_days: 90
+
+snowflake:
+  database: FACTORING
+  raw_schema: RAW
+  stage: RAW.LAKEHOUSE_EXPORT_STAGE
+  warehouse: LOAD_WH
+  role: LOADER

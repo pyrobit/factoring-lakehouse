@@ -1,7 +1,40 @@
-# Local source systems for the extraction demo (Phase 2):
-#   make up    -> Postgres (ops DB) + MongoDB (payment events), seeded with sample rows
-#   python -m factoring_lakehouse.ingestion.postgres_incremental --dsn postgresql://factoring:factoring@localhost:5432/factoring --batch live1 --until 2026-11-01T23:00:00+00:00
+# Local stack. Profiles keep each use case small:
+#
+#   make up            sources only: Postgres (ops DB) + MongoDB (payment events)
+#   make docker-demo   pipeline image runs the full demo   (profile: pipeline)
+#   make docker-test   pipeline image runs pytest + behave (profile: pipeline)
+#   make airflow-up    sources + Airflow at http://localhost:8080, login admin / admin (profile: airflow)
+#                      then trigger DAG "factoring_lakehouse_local"
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: docker/airflow/Dockerfile
+  image: factoring-lakehouse-airflow:local
+  user: "${AIRFLOW_UID:-1000}:0"
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"   # the prod DAG must never run against fake creds
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: utc
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "false"
+    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: "30"
+    # Connections as env vars (a secrets backend in prod). Hostnames are compose service names.
+    AIRFLOW_CONN_POSTGRES_FACTORING: postgresql://factoring:factoring@postgres:5432/factoring
+    AIRFLOW_CONN_MONGO_FACTORING: mongo://mongo:27017/factoring
+    FACTORING_CONFIG: /opt/factoring/conf/pipeline.airflow-local.yaml
+    TZ: UTC
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./data/airflow:/opt/airflow/data
+    - airflow-logs:/opt/airflow/logs
+  depends_on: &airflow-depends
+    airflow-db:
+      condition: service_healthy
+
 services:
+  # ------------------------------------------------------------------ source systems
   postgres:
     image: postgres:16.4
     environment:
@@ -25,3 +58,76 @@ services:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 5s
       retries: 10
+
+  # ------------------------------------------------------------------ pipeline image (option 1)
+  pipeline:
+    profiles: ["pipeline"]
+    build: .
+    image: factoring-lakehouse:local
+    volumes:
+      - ./data/docker:/app/data       # results land on the host for inspection
+    environment:
+      SPARK_MASTER: local[2]
+
+  # ------------------------------------------------------------------ Airflow (option 2)
+  airflow-db:
+    profiles: ["airflow"]
+    image: postgres:16.4
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      retries: 10
+
+  airflow-init:
+    <<: *airflow-common
+    profiles: ["airflow"]
+    # Keep the official entrypoint: it registers the host UID as a user (Airflow requires a username).
+    command:
+      - bash
+      - -c
+      - |
+        set -euo pipefail
+        mkdir -p /opt/airflow/data/state
+        airflow db migrate
+        if ! airflow users list | grep -qw admin; then
+          airflow users create --username admin --password admin --firstname Data --lastname Engineer \
+            --role Admin --email admin@example.com
+        fi
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    profiles: ["airflow"]
+    command: webserver
+    ports: ["8080:8080"]
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 15s
+      retries: 10
+
+  airflow-scheduler:
+    <<: *airflow-common
+    profiles: ["airflow"]
+    command: scheduler
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+
+volumes:
+  airflow-db:
+  airflow-logs:

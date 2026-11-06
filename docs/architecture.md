@@ -333,6 +333,7 @@ Guarantees, each covered by tests:
 | Storage access | Storage integration + IAM role (no keys) | `snowflake/sql/01_*`, `infra/terraform/main.tf` |
 | Orchestration | Airflow, deferrable Databricks operator, ShortCircuit reconcile gate | `airflow/dags/` |
 | Secrets | Airflow secrets backend; Snowflake key-pair auth | DAG docstring, `dbt/profiles.example.yml` |
+| Local runtime | Pipeline image (non-root, Java 17, Delta jars baked in); Airflow + sources via docker compose profiles | `Dockerfile`, `docker/`, `docker-compose.yml` |
 | CI | ruff, sqlfluff, pytest (Spark + Delta), behave, dbt parse, DAG integrity, terraform validate | `.github/workflows/ci.yml` |
 
 ### Multi-cloud notes
