@@ -1,0 +1,27 @@
+# Local source systems for the extraction demo (Phase 2):
+#   make up    -> Postgres (ops DB) + MongoDB (payment events), seeded with sample rows
+#   python -m factoring_lakehouse.ingestion.postgres_incremental --dsn postgresql://factoring:factoring@localhost:5432/factoring --batch live1 --until 2026-11-01T23:00:00+00:00
+services:
+  postgres:
+    image: postgres:16.4
+    environment:
+      POSTGRES_USER: factoring
+      POSTGRES_PASSWORD: factoring
+      POSTGRES_DB: factoring
+    ports: ["5432:5432"]
+    volumes:
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U factoring"]
+      interval: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7.0.14
+    ports: ["27017:27017"]
+    volumes:
+      - ./docker/mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      retries: 10
