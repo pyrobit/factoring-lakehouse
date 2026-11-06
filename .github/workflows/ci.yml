@@ -1,0 +1,86 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install ruff sqlfluff
+      - run: ruff check src tests airflow databricks
+      - run: sqlfluff lint snowflake/sql
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: "17"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - name: Cache Delta / Ivy jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.ivy2
+          key: ivy-delta-3.2.1
+      - run: pip install -e ".[dev]"
+      - name: Unit + end-to-end tests (local Spark + Delta)
+        run: pytest
+      - name: BDD scenarios (behave)
+        run: behave tests/features -f progress
+
+  dbt:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install "dbt-snowflake>=1.8"
+      - name: dbt parse (offline, no warehouse connection)
+        working-directory: dbt
+        run: dbt parse --profiles-dir ci --no-partial-parse
+
+  airflow:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - name: Install Airflow with constraints
+        run: |
+          AIRFLOW_VERSION=2.10.3
+          CONSTRAINTS="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-3.11.txt"
+          pip install "apache-airflow==${AIRFLOW_VERSION}" \
+            apache-airflow-providers-databricks apache-airflow-providers-snowflake \
+            apache-airflow-providers-postgres apache-airflow-providers-mongo \
+            apache-airflow-providers-slack apache-airflow-providers-common-sql \
+            --constraint "${CONSTRAINTS}"
+          pip install -e . --no-deps && pip install pydantic pyyaml pytest
+      - name: DAG integrity
+        env: {AIRFLOW__CORE__LOAD_EXAMPLES: "false"}
+        run: airflow db migrate && pytest tests/unit/test_dag_integrity.py
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: {terraform_version: 1.9.8}
+      - working-directory: infra/terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate
