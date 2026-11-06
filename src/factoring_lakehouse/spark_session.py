@@ -34,6 +34,12 @@ def get_spark(app_name: str = "factoring-lakehouse") -> SparkSession:
         # Allow overwriting a single as_of_date partition without touching the rest.
         .config("spark.sql.sources.partitionOverwriteMode", "dynamic")
     )
+    if os.getenv("SPARK_MASTER", "local[2]").startswith("local"):
+        # Local mode needs no resolvable hostname. spark-submit reads these env vars before any
+        # Spark conf is applied, so sandboxed runs (`docker run --network none`, CI) start cleanly.
+        os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")
+        os.environ.setdefault("SPARK_LOCAL_HOSTNAME", "localhost")
+        builder = builder.config("spark.driver.bindAddress", "127.0.0.1").config("spark.driver.host", "localhost")
     spark = configure_spark_with_delta_pip(builder).getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
     return spark

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from airflow import DAG
 from airflow.datasets import Dataset
 from airflow.models import Variable
 from airflow.operators.bash import BashOperator
@@ -27,8 +28,6 @@ from airflow.operators.python import PythonOperator, ShortCircuitOperator
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.providers.databricks.operators.databricks import DatabricksRunNowOperator
 from airflow.utils.task_group import TaskGroup
-
-from airflow import DAG
 
 LANDING = Variable.get("factoring_landing_root", default_var="s3://factoring-landing-prod/landing")
 STATE = Variable.get("factoring_watermark_state", default_var="/opt/airflow/state/watermarks.json")
@@ -129,7 +128,9 @@ with DAG(
         task_id="databricks_medallion",
         databricks_conn_id="databricks_default",
         job_name="factoring-medallion-prod",
-        job_parameters={"batch_id": "{{ ds }}", "as_of": "{{ ds }}"},
+        # Sent as-is to the Jobs run-now API (works on every provider version, unlike the newer
+        # `job_parameters` argument, which provider 6.12 pinned by Airflow 2.10.3 lacks).
+        json={"job_parameters": {"batch_id": "{{ ds }}", "as_of": "{{ ds }}"}},
         deferrable=True,            # frees the worker slot while the cluster runs
         retries=1,
     )
